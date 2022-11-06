@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::token::Token;
 
 #[derive(Debug, Clone)]
@@ -34,7 +36,42 @@ pub struct Production {
     pub items: Vec<ProductionItem>,
 }
 
-pub fn production_type_to_str(production_type: ProductionType) -> String {
+impl Production {
+    pub fn new(production_type: ProductionType) -> Self {
+        Production {
+            production_type,
+            items: Vec::new(),
+        }
+    }
+
+    pub fn to_string(&self, prepend: &str) -> String {
+        let strings: Vec<String> = self
+            .items
+            .iter()
+            .map(|item| match item {
+                ProductionItem::Production(prod) => prod.to_string(&format!("{}{}", prepend, "│")),
+                ProductionItem::Leaf(leaf) => format!("{}│├ {}", prepend, leaf.lexeme),
+            })
+            .collect();
+        let joined = strings.join("\n");
+        format!(
+            "{}├ {}{}{}",
+            prepend,
+            production_type_to_str(&self.production_type),
+            if self.items.len() > 0 { "\n" } else { "" },
+            joined,
+        )
+        .to_string()
+    }
+}
+
+impl fmt::Display for Production {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.to_string(""))
+    }
+}
+
+pub fn production_type_to_str(production_type: &ProductionType) -> String {
     match production_type {
         ProductionType::Programa => "programa",
         ProductionType::Declaraciones => "declaraciones",

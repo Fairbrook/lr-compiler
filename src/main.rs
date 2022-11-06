@@ -1,15 +1,19 @@
-use lexic::LexicAnalyzer;
-use token::TokenType;
+use sintactic::SintacticAnalyzer;
 
 pub mod lexic;
 pub mod production;
+pub mod sintactic;
 pub mod token;
 
 fn main() {
-    let mut lexic = LexicAnalyzer::new("hola hola12 123 123.32 begin end entero real , ; if () else = <= >= <> < > := \n$ while endwhile + - * / - + = * /");
-    let mut token = lexic.next_token();
-    while token.token_type != TokenType::EOF {
-        println!("{:?}", token);
-        token = lexic.next_token();
+    let mut lexic = SintacticAnalyzer::new(
+        "begin real hola; hola := 10; if(hola > 10) hola :=5; else hola:=6; end; end",
+    );
+    let res = lexic.analize();
+    if let Ok(r) = &res {
+        println!("{}", r);
+    }
+    if let Err(e) = res{
+        println!("{}", e);
     }
 }

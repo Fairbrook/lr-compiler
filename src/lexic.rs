@@ -143,6 +143,7 @@ impl<'a> LexicAnalyzer<'a> {
         };
         if self.next_char() == '=' {
             token.lexeme.push(self.current.clone());
+            self.next_char();
             return token;
         }
         Token {

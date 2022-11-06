@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum TokenType {
     Tipo,
     Begin,
@@ -19,10 +19,11 @@ pub enum TokenType {
     While,
     Endwhile,
     EOF,
+    #[default]
     Unknown,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -30,7 +31,7 @@ pub struct Token {
     pub col: u32,
 }
 
-pub fn token_type_to_str(token_type: TokenType) -> String {
+pub fn token_type_to_str(token_type: &TokenType) -> String {
     match token_type {
         TokenType::Tipo => "tipo",
         TokenType::Begin => "begin",
