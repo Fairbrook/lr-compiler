@@ -208,22 +208,28 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn bucle_while(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::BucleWhile);
+
         self.is_last(TokenType::While)?;
         prod.items
             .push(ProductionItem::Leaf(self.last_token.clone()));
         self.next_token();
+
         self.is_last(TokenType::ParentesisAbierto)?;
         prod.items
             .push(ProductionItem::Leaf(self.last_token.clone()));
         self.next_token();
+
         let comparacion = self.comparacion()?;
         prod.items.push(ProductionItem::Production(comparacion));
+
         self.is_last(TokenType::ParentesisCerrado)?;
         prod.items
             .push(ProductionItem::Leaf(self.last_token.clone()));
         self.next_token();
-        let ordenes = self.comparacion()?;
+
+        let ordenes = self.ordenes()?;
         prod.items.push(ProductionItem::Production(ordenes));
+
         self.is_last(TokenType::Endwhile)?;
         prod.items
             .push(ProductionItem::Leaf(self.last_token.clone()));
