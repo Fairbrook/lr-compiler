@@ -28,8 +28,8 @@ impl<'a> SintacticAnalyzer<'a> {
         self.last_token = self.lexic.next_token();
     }
 
-    pub fn is_last(&self, token_type: TokenType) -> Result<(), SintacticError> {
-        if token_type != self.last_token.token_type {
+    pub fn is_last(&self, token_type: &TokenType) -> Result<(), SintacticError> {
+        if *token_type != self.last_token.token_type {
             return Err(SintacticError::new(
                 &self.last_token,
                 &token_type_to_str(&token_type),
@@ -37,6 +37,19 @@ impl<'a> SintacticAnalyzer<'a> {
         } else {
             return Ok(());
         }
+    }
+
+    pub fn push_if(
+        &mut self,
+        token_type: &TokenType,
+        production: &mut Production,
+    ) -> Result<(), SintacticError> {
+        self.is_last(token_type)?;
+        production
+            .items
+            .push(ProductionItem::Leaf(self.last_token.clone()));
+        self.next_token();
+        Ok(())
     }
 
     pub fn sig_lista_variables(&mut self) -> SintacticResult {
@@ -53,10 +66,7 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn lista_variables(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::ListaVariables);
-        self.is_last(TokenType::Id)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Id, &mut prod)?;
         let sig = self.sig_lista_variables()?;
         prod.items.push(ProductionItem::Production(sig));
         Ok(prod)
@@ -64,10 +74,7 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn declaracion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Declaracion);
-        self.is_last(TokenType::Tipo)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Tipo, &mut prod)?;
         let lista = self.lista_variables()?;
         prod.items.push(ProductionItem::Production(lista));
         Ok(prod)
@@ -79,10 +86,7 @@ impl<'a> SintacticAnalyzer<'a> {
             let declaraciones = self.declaracion()?;
             prod.items.push(ProductionItem::Production(declaraciones));
 
-            self.is_last(TokenType::Semicolon)?;
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
+            self.push_if(&TokenType::Semicolon, &mut prod)?;
 
             let sig = self.sig_declaraciones()?;
             prod.items.push(ProductionItem::Production(sig));
@@ -95,10 +99,7 @@ impl<'a> SintacticAnalyzer<'a> {
         let declaracion = self.declaracion()?;
         prod.items.push(ProductionItem::Production(declaracion));
 
-        self.is_last(TokenType::Semicolon)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Semicolon, &mut prod)?;
 
         let sig = self.sig_declaraciones()?;
         prod.items.push(ProductionItem::Production(sig));
@@ -110,10 +111,8 @@ impl<'a> SintacticAnalyzer<'a> {
         if self.is_orden() {
             let orden = self.orden()?;
             prod.items.push(ProductionItem::Production(orden));
-            self.is_last(TokenType::Semicolon)?;
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
+
+            self.push_if(&TokenType::Semicolon, &mut prod)?;
 
             let sig = self.sig_ordenes()?;
             prod.items.push(ProductionItem::Production(sig));
@@ -131,10 +130,8 @@ impl<'a> SintacticAnalyzer<'a> {
             let ordenes = self.ordenes()?;
             prod.items.push(ProductionItem::Production(ordenes));
         }
-        self.is_last(TokenType::End)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::End, &mut prod)?;
+
         return Ok(prod);
     }
 
@@ -169,10 +166,9 @@ impl<'a> SintacticAnalyzer<'a> {
         let mut prod = Production::new(ProductionType::Comparacion);
         let operador = self.operador()?;
         prod.items.push(ProductionItem::Production(operador));
-        self.is_last(TokenType::OperadorCondicion)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+
+        self.push_if(&TokenType::OperadorCondicion, &mut prod)?;
+
         let operador = self.operador()?;
         prod.items.push(ProductionItem::Production(operador));
         Ok(prod)
@@ -180,23 +176,14 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn condicion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Condicion);
-        self.is_last(TokenType::If)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
 
-        self.is_last(TokenType::ParentesisAbierto)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::If, &mut prod)?;
+        self.push_if(&TokenType::ParentesisAbierto, &mut prod)?;
 
         let comparacion = self.comparacion()?;
         prod.items.push(ProductionItem::Production(comparacion));
 
-        self.is_last(TokenType::ParentesisCerrado)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
 
         let ordenes = self.ordenes()?;
         prod.items.push(ProductionItem::Production(ordenes));
@@ -209,37 +196,24 @@ impl<'a> SintacticAnalyzer<'a> {
     pub fn bucle_while(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::BucleWhile);
 
-        self.is_last(TokenType::While)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
-
-        self.is_last(TokenType::ParentesisAbierto)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::While, &mut prod)?;
+        self.push_if(&TokenType::ParentesisAbierto, &mut prod)?;
 
         let comparacion = self.comparacion()?;
         prod.items.push(ProductionItem::Production(comparacion));
 
-        self.is_last(TokenType::ParentesisCerrado)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
 
         let ordenes = self.ordenes()?;
         prod.items.push(ProductionItem::Production(ordenes));
 
-        self.is_last(TokenType::Endwhile)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
         Ok(prod)
     }
 
-    pub fn exp_arit(&mut self) -> SintacticResult {
-        let mut prod = Production::new(ProductionType::ExpArit);
-        if let TokenType::OperadorArit = self.last_token.token_type {
+    pub fn factor(&mut self) -> SintacticResult {
+        let mut prod = Production::new(ProductionType::Factor);
+        if let TokenType::ParentesisAbierto = self.last_token.token_type {
             prod.items
                 .push(ProductionItem::Leaf(self.last_token.clone()));
             self.next_token();
@@ -247,7 +221,52 @@ impl<'a> SintacticAnalyzer<'a> {
             let exp = self.expresion_arit()?;
             prod.items.push(ProductionItem::Production(exp));
 
-            let exp = self.exp_arit()?;
+            self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
+            return Ok(prod);
+        }
+
+        let operador = self.operador()?;
+        prod.items.push(ProductionItem::Production(operador));
+        Ok(prod)
+    }
+
+    pub fn rest_term(&mut self) -> SintacticResult {
+        let mut prod = Production::new(ProductionType::RestTerm);
+        if let TokenType::OperadorAritB = self.last_token.token_type {
+            prod.items
+                .push(ProductionItem::Leaf(self.last_token.clone()));
+            self.next_token();
+
+            let op = self.factor()?;
+            prod.items.push(ProductionItem::Production(op));
+
+            let exp = self.rest_term()?;
+            prod.items.push(ProductionItem::Production(exp));
+        }
+        Ok(prod)
+    }
+
+    pub fn termino(&mut self) -> SintacticResult {
+        let mut prod = Production::new(ProductionType::Term);
+        let factor = self.factor()?;
+        prod.items.push(ProductionItem::Production(factor));
+
+        let rest_term = self.rest_term()?;
+        prod.items.push(ProductionItem::Production(rest_term));
+        Ok(prod)
+    }
+
+    pub fn rest_expr(&mut self) -> SintacticResult {
+        let mut prod = Production::new(ProductionType::RestExp);
+        if let TokenType::OperadorAritA = self.last_token.token_type {
+            prod.items
+                .push(ProductionItem::Leaf(self.last_token.clone()));
+            self.next_token();
+
+            let op = self.termino()?;
+            prod.items.push(ProductionItem::Production(op));
+
+            let exp = self.rest_expr()?;
             prod.items.push(ProductionItem::Production(exp));
         }
         Ok(prod)
@@ -255,59 +274,18 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn expresion_arit(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::ExpresionArit);
-        match self.last_token.token_type {
-            TokenType::ParentesisAbierto => {
-                prod.items
-                    .push(ProductionItem::Leaf(self.last_token.clone()));
-                self.next_token();
+        let op = self.termino()?;
+        prod.items.push(ProductionItem::Production(op));
 
-                let exp = self.expresion_arit()?;
-                prod.items.push(ProductionItem::Production(exp));
-
-                let op = self.operador()?;
-                prod.items.push(ProductionItem::Production(op));
-
-                let exp = self.expresion_arit()?;
-                prod.items.push(ProductionItem::Production(exp));
-
-                self.is_last(TokenType::ParentesisCerrado)?;
-                prod.items
-                    .push(ProductionItem::Leaf(self.last_token.clone()));
-                self.next_token();
-            }
-            TokenType::Id => {
-                prod.items
-                    .push(ProductionItem::Leaf(self.last_token.clone()));
-                self.next_token();
-            }
-            TokenType::Entero | TokenType::Real => {
-                let numeros = self.numeros()?;
-                prod.items.push(ProductionItem::Production(numeros));
-            }
-            _ => {
-                return Err(SintacticError::new(
-                    &self.last_token,
-                    "parentesis, identificador o un número",
-                ));
-            }
-        }
-
-        let exp = self.exp_arit()?;
+        let exp = self.rest_expr()?;
         prod.items.push(ProductionItem::Production(exp));
         Ok(prod)
     }
 
     pub fn asignar(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Asignar);
-        self.is_last(TokenType::Id)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
-
-        self.is_last(TokenType::OperadorAsig)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Id, &mut prod)?;
+        self.push_if(&TokenType::OperadorAsig, &mut prod)?;
 
         let exp = self.expresion_arit()?;
         prod.items.push(ProductionItem::Production(exp));
@@ -346,10 +324,7 @@ impl<'a> SintacticAnalyzer<'a> {
         let orden = self.orden()?;
         prod.items.push(ProductionItem::Production(orden));
 
-        self.is_last(TokenType::Semicolon)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Semicolon, &mut prod)?;
 
         let sig = self.sig_ordenes()?;
         prod.items.push(ProductionItem::Production(sig));
@@ -358,10 +333,7 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn programa(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Programa);
-        self.is_last(TokenType::Begin)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::Begin, &mut prod)?;
 
         let declaraciones = self.declaraciones()?;
         prod.items.push(ProductionItem::Production(declaraciones));
@@ -369,17 +341,14 @@ impl<'a> SintacticAnalyzer<'a> {
         let ordenes = self.ordenes()?;
         prod.items.push(ProductionItem::Production(ordenes));
 
-        self.is_last(TokenType::End)?;
-        prod.items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
-        self.next_token();
+        self.push_if(&TokenType::End, &mut prod)?;
         Ok(prod)
     }
 
     pub fn analize(&'a mut self) -> SintacticResult {
         self.next_token();
         let production = self.programa()?;
-        self.is_last(TokenType::EOF)?;
+        self.is_last(&TokenType::EOF)?;
         Ok(production)
     }
 }

@@ -103,7 +103,7 @@ impl<'a> LexicAnalyzer<'a> {
 
     pub fn operator(&mut self) -> Token {
         let token = Token {
-            token_type: TokenType::OperadorArit,
+            token_type: TokenType::OperadorAritA,
             lexeme: self.current.to_string(),
             line: self.current_line as u32,
             col: self.current_col as u32,

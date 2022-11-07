@@ -27,7 +27,10 @@ pub enum ProductionType {
     BucleWhile,
     Asignar,
     ExpresionArit,
-    ExpArit,
+    RestExp,
+    Term,
+    RestTerm,
+    Factor,
 }
 
 #[derive(Debug, Clone)]
@@ -90,7 +93,10 @@ pub fn production_type_to_str(production_type: &ProductionType) -> String {
         ProductionType::BucleWhile => "bucle_while",
         ProductionType::Asignar => "asignar",
         ProductionType::ExpresionArit => "expresion_arit",
-        ProductionType::ExpArit => "exp_arit",
+        ProductionType::RestExp => "rest_expr",
+        ProductionType::Term => "termino",
+        ProductionType::RestTerm => "rest_term",
+        ProductionType::Factor => "factor",
     }
     .to_string()
 }
