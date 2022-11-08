@@ -47,6 +47,14 @@ impl Production {
         }
     }
 
+    pub fn push_node(&mut self, production: Production) {
+        self.items.push(ProductionItem::Production(production));
+    }
+
+    pub fn push_leaf(&mut self, leaf: Token) {
+        self.items.push(ProductionItem::Leaf(leaf));
+    }
+
     pub fn to_string(&self, prepend: &str) -> String {
         let strings: Vec<String> = self
             .items

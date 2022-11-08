@@ -2,7 +2,7 @@ pub mod error;
 
 use crate::{
     lexic::LexicAnalyzer,
-    production::{Production, ProductionItem, ProductionType},
+    production::{Production, ProductionType},
     token::{token_type_to_str, Token, TokenType},
 };
 
@@ -39,107 +39,80 @@ impl<'a> SintacticAnalyzer<'a> {
         }
     }
 
-    pub fn push_if(
+    pub fn push_token_if(
         &mut self,
         token_type: &TokenType,
         production: &mut Production,
     ) -> Result<(), SintacticError> {
         self.is_last(token_type)?;
-        production
-            .items
-            .push(ProductionItem::Leaf(self.last_token.clone()));
+        production.push_leaf(self.last_token.clone());
         self.next_token();
         Ok(())
     }
 
     pub fn sig_lista_variables(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::SigListaVariables);
-        while let TokenType::Coma = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
-            let rest_var = self.lista_variables()?;
-            prod.items.push(ProductionItem::Production(rest_var));
+        while let Ok(_) = self.push_token_if(&TokenType::Coma, &mut prod) {
+            prod.push_node(self.lista_variables()?);
         }
         Ok(prod)
     }
 
     pub fn lista_variables(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::ListaVariables);
-        self.push_if(&TokenType::Id, &mut prod)?;
-        let sig = self.sig_lista_variables()?;
-        prod.items.push(ProductionItem::Production(sig));
+        self.push_token_if(&TokenType::Id, &mut prod)?;
+        prod.push_node(self.sig_lista_variables()?);
         Ok(prod)
     }
 
     pub fn declaracion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Declaracion);
-        self.push_if(&TokenType::Tipo, &mut prod)?;
-        let lista = self.lista_variables()?;
-        prod.items.push(ProductionItem::Production(lista));
+        self.push_token_if(&TokenType::Tipo, &mut prod)?;
+        prod.push_node(self.lista_variables()?);
         Ok(prod)
     }
 
     pub fn sig_declaraciones(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::SigDeclaraciones);
         if let TokenType::Tipo = self.last_token.token_type {
-            let declaraciones = self.declaracion()?;
-            prod.items.push(ProductionItem::Production(declaraciones));
-
-            self.push_if(&TokenType::Semicolon, &mut prod)?;
-
-            let sig = self.sig_declaraciones()?;
-            prod.items.push(ProductionItem::Production(sig));
+            prod.push_node(self.declaracion()?);
+            self.push_token_if(&TokenType::Semicolon, &mut prod)?;
+            prod.push_node(self.sig_declaraciones()?);
         }
         Ok(prod)
     }
 
     pub fn declaraciones(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Declaraciones);
-        let declaracion = self.declaracion()?;
-        prod.items.push(ProductionItem::Production(declaracion));
-
-        self.push_if(&TokenType::Semicolon, &mut prod)?;
-
-        let sig = self.sig_declaraciones()?;
-        prod.items.push(ProductionItem::Production(sig));
+        prod.push_node(self.declaracion()?);
+        self.push_token_if(&TokenType::Semicolon, &mut prod)?;
+        prod.push_node(self.sig_declaraciones()?);
         Ok(prod)
     }
 
     pub fn sig_ordenes(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::SigOrdenes);
         if self.is_orden() {
-            let orden = self.orden()?;
-            prod.items.push(ProductionItem::Production(orden));
-
-            self.push_if(&TokenType::Semicolon, &mut prod)?;
-
-            let sig = self.sig_ordenes()?;
-            prod.items.push(ProductionItem::Production(sig));
+            prod.push_node(self.orden()?);
+            self.push_token_if(&TokenType::Semicolon, &mut prod)?;
+            prod.push_node(self.sig_ordenes()?);
         }
         Ok(prod)
     }
 
     pub fn sig_condicion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::SigCondicion);
-        if let TokenType::Else = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
-
-            let ordenes = self.ordenes()?;
-            prod.items.push(ProductionItem::Production(ordenes));
+        if let Ok(_) = self.push_token_if(&TokenType::Else, &mut prod) {
+            prod.push_node(self.ordenes()?);
         }
-        self.push_if(&TokenType::End, &mut prod)?;
-
+        self.push_token_if(&TokenType::End, &mut prod)?;
         return Ok(prod);
     }
 
     pub fn numeros(&mut self) -> SintacticResult {
         if let TokenType::Entero | TokenType::Real = self.last_token.token_type {
             let mut prod = Production::new(ProductionType::Numeros);
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
+            prod.push_leaf(self.last_token.clone());
             self.next_token();
             return Ok(prod);
         }
@@ -151,144 +124,91 @@ impl<'a> SintacticAnalyzer<'a> {
 
     pub fn operador(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Operador);
-        if let TokenType::Id = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
+        if let Ok(_) = self.push_token_if(&TokenType::Id, &mut prod) {
             return Ok(prod);
         }
-        let num = self.numeros()?;
-        prod.items.push(ProductionItem::Production(num));
+        prod.push_node(self.numeros()?);
         Ok(prod)
     }
 
     pub fn comparacion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Comparacion);
-        let operador = self.operador()?;
-        prod.items.push(ProductionItem::Production(operador));
-
-        self.push_if(&TokenType::OperadorCondicion, &mut prod)?;
-
-        let operador = self.operador()?;
-        prod.items.push(ProductionItem::Production(operador));
+        prod.push_node(self.operador()?);
+        self.push_token_if(&TokenType::OperadorCondicion, &mut prod)?;
+        prod.push_node(self.operador()?);
         Ok(prod)
     }
 
     pub fn condicion(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Condicion);
-
-        self.push_if(&TokenType::If, &mut prod)?;
-        self.push_if(&TokenType::ParentesisAbierto, &mut prod)?;
-
-        let comparacion = self.comparacion()?;
-        prod.items.push(ProductionItem::Production(comparacion));
-
-        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
-
-        let ordenes = self.ordenes()?;
-        prod.items.push(ProductionItem::Production(ordenes));
-
-        let sig = self.sig_condicion()?;
-        prod.items.push(ProductionItem::Production(sig));
+        self.push_token_if(&TokenType::If, &mut prod)?;
+        self.push_token_if(&TokenType::ParentesisAbierto, &mut prod)?;
+        prod.push_node(self.comparacion()?);
+        self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
+        prod.push_node(self.ordenes()?);
+        prod.push_node(self.sig_condicion()?);
         Ok(prod)
     }
 
     pub fn bucle_while(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::BucleWhile);
-
-        self.push_if(&TokenType::While, &mut prod)?;
-        self.push_if(&TokenType::ParentesisAbierto, &mut prod)?;
-
-        let comparacion = self.comparacion()?;
-        prod.items.push(ProductionItem::Production(comparacion));
-
-        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
-
-        let ordenes = self.ordenes()?;
-        prod.items.push(ProductionItem::Production(ordenes));
-
-        self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
+        self.push_token_if(&TokenType::While, &mut prod)?;
+        self.push_token_if(&TokenType::ParentesisAbierto, &mut prod)?;
+        prod.push_node(self.comparacion()?);
+        self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
+        prod.push_node(self.ordenes()?);
+        self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
         Ok(prod)
     }
 
     pub fn factor(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Factor);
-        if let TokenType::ParentesisAbierto = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
-
-            let exp = self.expresion_arit()?;
-            prod.items.push(ProductionItem::Production(exp));
-
-            self.push_if(&TokenType::ParentesisCerrado, &mut prod)?;
+        if let Ok(_) = self.push_token_if(&TokenType::ParentesisAbierto, &mut prod) {
+            prod.push_node(self.expresion_arit()?);
+            self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
             return Ok(prod);
         }
-
-        let operador = self.operador()?;
-        prod.items.push(ProductionItem::Production(operador));
+        prod.push_node(self.operador()?);
         Ok(prod)
     }
 
     pub fn rest_term(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::RestTerm);
-        if let TokenType::OperadorAritB = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
-
-            let op = self.factor()?;
-            prod.items.push(ProductionItem::Production(op));
-
-            let exp = self.rest_term()?;
-            prod.items.push(ProductionItem::Production(exp));
+        if let Ok(_) = self.push_token_if(&TokenType::OperadorAritB, &mut prod) {
+            prod.push_node(self.factor()?);
+            prod.push_node(self.rest_term()?);
         }
         Ok(prod)
     }
 
     pub fn termino(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Term);
-        let factor = self.factor()?;
-        prod.items.push(ProductionItem::Production(factor));
-
-        let rest_term = self.rest_term()?;
-        prod.items.push(ProductionItem::Production(rest_term));
+        prod.push_node(self.factor()?);
+        prod.push_node(self.rest_term()?);
         Ok(prod)
     }
 
     pub fn rest_expr(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::RestExp);
-        if let TokenType::OperadorAritA = self.last_token.token_type {
-            prod.items
-                .push(ProductionItem::Leaf(self.last_token.clone()));
-            self.next_token();
-
-            let op = self.termino()?;
-            prod.items.push(ProductionItem::Production(op));
-
-            let exp = self.rest_expr()?;
-            prod.items.push(ProductionItem::Production(exp));
+        if let Ok(_) = self.push_token_if(&TokenType::OperadorAritA, &mut prod) {
+            prod.push_node(self.termino()?);
+            prod.push_node(self.rest_expr()?);
         }
         Ok(prod)
     }
 
     pub fn expresion_arit(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::ExpresionArit);
-        let op = self.termino()?;
-        prod.items.push(ProductionItem::Production(op));
-
-        let exp = self.rest_expr()?;
-        prod.items.push(ProductionItem::Production(exp));
+        prod.push_node(self.termino()?);
+        prod.push_node(self.rest_expr()?);
         Ok(prod)
     }
 
     pub fn asignar(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Asignar);
-        self.push_if(&TokenType::Id, &mut prod)?;
-        self.push_if(&TokenType::OperadorAsig, &mut prod)?;
-
-        let exp = self.expresion_arit()?;
-        prod.items.push(ProductionItem::Production(exp));
+        self.push_token_if(&TokenType::Id, &mut prod)?;
+        self.push_token_if(&TokenType::OperadorAsig, &mut prod)?;
+        prod.push_node(self.expresion_arit()?);
         Ok(prod)
     }
 
@@ -308,40 +228,28 @@ impl<'a> SintacticAnalyzer<'a> {
             TokenType::Id => self.asignar(),
             _ => Err(SintacticError::new(
                 &self.last_token,
-                "if while o una asignación",
+                "if, while o una asignación",
             )),
-        };
-        if let Ok(production) = content {
-            let mut prod = Production::new(ProductionType::Orden);
-            prod.items.push(ProductionItem::Production(production));
-            return Ok(prod);
-        }
-        content
+        }?;
+        let mut prod = Production::new(ProductionType::Orden);
+        prod.push_node(content);
+        Ok(prod)
     }
 
     pub fn ordenes(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Ordenes);
-        let orden = self.orden()?;
-        prod.items.push(ProductionItem::Production(orden));
-
-        self.push_if(&TokenType::Semicolon, &mut prod)?;
-
-        let sig = self.sig_ordenes()?;
-        prod.items.push(ProductionItem::Production(sig));
+        prod.push_node(self.orden()?);
+        self.push_token_if(&TokenType::Semicolon, &mut prod)?;
+        prod.push_node(self.sig_ordenes()?);
         Ok(prod)
     }
 
     pub fn programa(&mut self) -> SintacticResult {
         let mut prod = Production::new(ProductionType::Programa);
-        self.push_if(&TokenType::Begin, &mut prod)?;
-
-        let declaraciones = self.declaraciones()?;
-        prod.items.push(ProductionItem::Production(declaraciones));
-
-        let ordenes = self.ordenes()?;
-        prod.items.push(ProductionItem::Production(ordenes));
-
-        self.push_if(&TokenType::End, &mut prod)?;
+        self.push_token_if(&TokenType::Begin, &mut prod)?;
+        prod.push_node(self.declaraciones()?);
+        prod.push_node(self.ordenes()?);
+        self.push_token_if(&TokenType::End, &mut prod)?;
         Ok(prod)
     }
 
