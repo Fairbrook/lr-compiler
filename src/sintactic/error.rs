@@ -16,6 +16,8 @@ impl SintacticError {
     }
 }
 impl error::Error for SintacticError {}
+//impl From< for SintacticError{
+//}
 impl fmt::Display for SintacticError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(

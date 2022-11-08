@@ -1,0 +1,18 @@
+begin
+    entero hola, jefe;
+    real adios;
+    hola:= 0;
+    adios := 0.0;
+    hola := 32 + hola * (23-2*4);
+    if (hola > 10) 
+        jefe :=hola;
+        hola := 10;
+        adios := 1;
+    else
+        hola := 5;
+    end;
+
+    while (hola<10)
+        hola :=10+1;
+    endwhile;
+end

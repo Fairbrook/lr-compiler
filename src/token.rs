@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Default)]
+use std::hash::Hash;
+
+#[derive(Debug, Clone, PartialEq, Default, Hash)]
 pub enum TokenType {
     Tipo,
     Begin,
@@ -30,6 +32,13 @@ pub struct Token {
     pub lexeme: String,
     pub line: u32,
     pub col: u32,
+}
+
+impl Hash for Token {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.lexeme.hash(state);
+        self.token_type.hash(state);
+    }
 }
 
 pub fn token_type_to_str(token_type: &TokenType) -> String {

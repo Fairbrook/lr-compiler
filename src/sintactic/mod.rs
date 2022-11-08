@@ -157,7 +157,7 @@ impl<'a> SintacticAnalyzer<'a> {
         prod.push_node(self.comparacion()?);
         self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
         prod.push_node(self.ordenes()?);
-        self.push_token_if(&TokenType::ParentesisCerrado, &mut prod)?;
+        self.push_token_if(&TokenType::Endwhile, &mut prod)?;
         Ok(prod)
     }
 
