@@ -34,6 +34,23 @@ impl SemanticAnalyzer {
         }
     }
 
+    pub fn next_jump(&mut self) -> String {
+        self.current_jump += 1;
+        let tag = format!("jmp_{}", self.current_jump);
+        tag
+    }
+
+    pub fn next_temp(&mut self) -> String {
+        self.current_temp += 1;
+        let tag = format!("__temp_{}", self.current_temp);
+        tag
+    }
+
+    pub fn current_temp(&mut self) -> String {
+        let tag = format!("__temp_{}", self.current_temp);
+        tag
+    }
+
     pub fn parse(&mut self, input: &str) -> SemanticResult {
         self.table.clear();
         self.current_temp = 0;
@@ -46,59 +63,49 @@ impl SemanticAnalyzer {
             Err(sintactic_error) => Err(SemanticError::from_sintactic(sintactic_error)),
             Ok(sintactic_tree) => Ok(sintactic_tree),
         }?;
-
-        if let ProductionItem::Production(prod) = &tree.items[1] {
-            self.declaraciones(prod)?;
-        }
-        if let ProductionItem::Production(ordenes) = &tree.items[2] {
-            return self.ordenes(ordenes);
-        }
-        Ok(String::new())
+        self.declaraciones(production_as_node(&tree.items[1])?)?;
+        self.ordenes(production_as_node(&tree.items[2])?)
     }
 
-    pub fn sig_lista_variables(&mut self, var_type: &VariableType, lista: &Production) {
+    pub fn sig_lista_variables(
+        &mut self,
+        var_type: &VariableType,
+        lista: &Production,
+    ) -> Result<(), SemanticError> {
         if lista.items.len() > 0 {
-            if let ProductionItem::Production(prod) = &lista.items[1] {
-                self.lista_variables(var_type, prod);
-            }
-        }
-    }
-
-    pub fn lista_variables(&mut self, var_type: &VariableType, lista: &Production) {
-        let id = &lista.items[0];
-        let next_list = &lista.items[1];
-        if let (ProductionItem::Leaf(id), ProductionItem::Production(next)) = (id, next_list) {
-            self.table.add(&id, var_type);
-            self.sig_lista_variables(var_type, next);
-        }
-    }
-
-    pub fn declaracion(&mut self, production: &Production) -> Result<(), SemanticError> {
-        let tipo = &production.items[0];
-        let lista = &production.items[1];
-        if let (ProductionItem::Leaf(tipo), ProductionItem::Production(lista)) = (tipo, lista) {
-            let var_type = match tipo.lexeme.as_str() {
-                "entero" => VariableType::Entero,
-                "real" => VariableType::Real,
-                _ => VariableType::Real,
-            };
-            self.lista_variables(&var_type, &lista);
+            return self.lista_variables(var_type, production_as_node(&lista.items[1])?);
         }
         Ok(())
     }
 
+    pub fn lista_variables(
+        &mut self,
+        var_type: &VariableType,
+        lista: &Production,
+    ) -> Result<(), SemanticError> {
+        let id = production_as_leaf(&lista.items[0])?;
+        let next_list = production_as_node(&lista.items[1])?;
+        self.table.add(&id, var_type);
+        self.sig_lista_variables(var_type, next_list)
+    }
+
+    pub fn declaracion(&mut self, production: &Production) -> Result<(), SemanticError> {
+        let tipo = production_as_leaf(&production.items[0])?;
+        let lista = production_as_node(&production.items[1])?;
+        let var_type = match tipo.lexeme.as_str() {
+            "entero" => VariableType::Entero,
+            "real" => VariableType::Real,
+            _ => VariableType::Real,
+        };
+        self.lista_variables(&var_type, &lista)
+    }
+
     pub fn declaraciones(&mut self, production: &Production) -> Result<(), SemanticError> {
         if production.items.len() == 3 {
-            let declaracion = &production.items[0];
-            let sig = &production.items[2];
-            if let (
-                ProductionItem::Production(declaracion),
-                ProductionItem::Production(sig_declaraciones),
-            ) = (declaracion, sig)
-            {
-                self.declaracion(&declaracion)?;
-                self.declaraciones(&sig_declaraciones)?;
-            }
+            let declaracion = production_as_node(&production.items[0])?;
+            let sig_declaraciones = production_as_node(&production.items[2])?;
+            self.declaracion(&declaracion)?;
+            self.declaraciones(&sig_declaraciones)?;
         }
         Ok(())
     }
@@ -127,23 +134,6 @@ impl SemanticAnalyzer {
             op.lexeme,
             self.operador(operador_b)?
         ))
-    }
-
-    pub fn next_jump(&mut self) -> String {
-        self.current_jump += 1;
-        let tag = format!("jmp_{}", self.current_jump);
-        tag
-    }
-
-    pub fn next_temp(&mut self) -> String {
-        self.current_temp += 1;
-        let tag = format!("__temp_{}", self.current_temp);
-        tag
-    }
-
-    pub fn current_temp(&mut self) -> String {
-        let tag = format!("__temp_{}", self.current_temp);
-        tag
     }
 
     pub fn exp(&mut self, production: &Production) -> SemanticResult {
@@ -254,31 +244,23 @@ impl SemanticAnalyzer {
     }
 
     pub fn orden(&mut self, production: &Production) -> SemanticResult {
-        if let ProductionItem::Production(orden) = &production.items[0] {
-            let ordenes = match orden.production_type {
-                ProductionType::Condicion => self.condicion(orden),
-                ProductionType::BucleWhile => self.bucle_while(orden),
-                ProductionType::Asignar => self.asignar(orden),
-                _ => Ok(String::new()),
-            }?;
-            return Ok(format!("{}\n", ordenes));
-        }
-        Ok(String::new())
+        let orden = production_as_node(&production.items[0])?;
+        let ordenes = match orden.production_type {
+            ProductionType::Condicion => self.condicion(orden),
+            ProductionType::BucleWhile => self.bucle_while(orden),
+            ProductionType::Asignar => self.asignar(orden),
+            _ => Ok(String::new()),
+        }?;
+        return Ok(format!("{}\n", ordenes));
     }
 
     pub fn ordenes(&mut self, production: &Production) -> SemanticResult {
         let mut parsed = String::new();
         if production.items.len() == 3 {
-            let orden = &production.items[0];
-            let sig = &production.items[2];
-            if let (
-                ProductionItem::Production(orden),
-                ProductionItem::Production(sig_declaraciones),
-            ) = (orden, sig)
-            {
-                parsed.push_str(self.orden(&orden)?.as_str());
-                parsed.push_str(self.ordenes(&sig_declaraciones)?.as_str());
-            }
+            let orden = production_as_node(&production.items[0])?;
+            let sig_ordenes = production_as_node(&production.items[2])?;
+            parsed.push_str(self.orden(&orden)?.as_str());
+            parsed.push_str(self.ordenes(&sig_ordenes)?.as_str());
         }
         Ok(parsed)
     }
